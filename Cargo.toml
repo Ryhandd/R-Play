@@ -1,0 +1,23 @@
+[package]
+name = "r-play"
+version = "0.1.0"
+edition = "2021"
+description = "Lightweight offline terminal music player"
+
+[[bin]]
+name = "rplay"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.28"
+lofty = "0.22"
+ratatui = "0.29"
+rodio = "0.19"
+walkdir = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

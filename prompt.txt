@@ -1,0 +1,215 @@
+# PROMPT OPENCODE: DEVELOPMENT R-PLAY
+
+Bertindak sebagai Senior Rust Developer. Bangun aplikasi bernama **R-Play (`rplay`)**, yaitu pemutar musik offline berbasis Terminal User Interface (TUI) menggunakan Rust.
+
+## 1. Tujuan Utama
+
+Buat music player terminal yang:
+- Ringan dan hemat resource.
+- Bisa memutar musik langsung dari penyimpanan lokal.
+- Memiliki tampilan TUI yang rapi dan modern.
+- Bisa dikontrol sepenuhnya menggunakan keyboard.
+- Bisa dikompilasi untuk Windows dan Linux.
+- Menggunakan GitHub Actions untuk proses build agar tidak membebani laptop pengguna.
+
+Target optimasi:
+- RAM: target di bawah 15 MB saat idle jika memungkinkan.
+- CPU: penggunaan rendah saat idle.
+- Binary release sekecil mungkin tanpa mengorbankan stabilitas.
+
+Jangan menjamin angka performa sebelum melakukan pengujian.
+
+## 2. Teknologi
+
+Gunakan Rust dengan dependensi berikut:
+
+- `rodio`: pemutaran audio.
+- `ratatui`: antarmuka terminal.
+- `crossterm`: input keyboard dan pengelolaan terminal.
+- `walkdir`: pemindaian folder musik.
+- `clap`: parsing argumen CLI.
+- `lofty`: membaca metadata audio, digunakan pada fase lanjutan.
+
+Gunakan versi crate yang kompatibel satu sama lain. Hindari dependensi tambahan jika tidak benar-benar diperlukan.
+
+## 3. Struktur Proyek
+
+Gunakan struktur modular berikut:
+
+r-play/
+├── .github/
+│   └── workflows/
+│       └── build.yml
+├── src/
+│   ├── main.rs
+│   ├── app.rs
+│   ├── audio.rs
+│   ├── scanner.rs
+│   └── ui.rs
+├── Cargo.toml
+└── README.md
+
+Jangan membuat file atau folder tambahan tanpa kebutuhan teknis yang jelas.
+
+## 4. Fitur Pengembangan
+
+Kerjakan berdasarkan prioritas berikut.
+
+### FASE 1: MVP (WAJIB)
+
+Pastikan aplikasi benar-benar berfungsi sebelum menambahkan fitur lain.
+
+1. Membaca folder musik dari argumen terminal.
+2. Memindai folder beserta subfolder.
+3. Mendukung format MP3, WAV, OGG, dan FLAC.
+4. Menampilkan daftar lagu dalam TUI.
+5. Memutar lagu menggunakan Rodio.
+6. Play/Pause menggunakan Space.
+7. Next menggunakan N.
+8. Previous menggunakan P.
+9. Volume naik menggunakan +.
+10. Volume turun menggunakan -.
+11. Keluar menggunakan Q.
+12. Menampilkan judul file lagu yang sedang diputar.
+13. Menangani folder kosong dan file audio yang gagal dibaca tanpa membuat aplikasi crash.
+
+Perintah penggunaan:
+
+`rplay ~/Music`
+
+Windows:
+
+`rplay "D:\Music"`
+
+### FASE 2: FITUR TAMBAHAN
+
+Setelah Fase 1 stabil, tambahkan:
+
+1. Shuffle playlist.
+2. Repeat One dan Repeat All.
+3. Progress bar lagu.
+4. Navigasi playlist menggunakan tombol panah.
+5. Enter untuk memutar lagu yang dipilih.
+6. Menampilkan durasi lagu jika tersedia.
+
+Argumen CLI:
+- `--shuffle`: memulai pemutaran secara acak.
+- `--repeat`: mengaktifkan pengulangan playlist.
+
+### FASE 3: PENYEMPURNAAN
+
+Tambahkan hanya jika dua fase sebelumnya sudah stabil:
+
+1. Metadata lagu menggunakan Lofty (Title, Artist, Album).
+2. Pencarian lagu dalam playlist.
+3. Konfigurasi folder musik default secara lokal.
+
+Jangan menambahkan database, sistem akun, streaming online, visualizer, atau fitur yang tidak tercantum.
+
+## 5. Desain TUI
+
+Buat tampilan terminal yang modern, minimalis, dan mudah dibaca.
+
+Layout:
+- Header: R-PLAY MUSIC PLAYER.
+- Bagian utama: daftar playlist.
+- Bagian bawah: Now Playing.
+- Progress bar dan durasi lagu.
+- Indikator Play/Pause.
+- Informasi volume dan mode Shuffle/Repeat.
+- Footer: daftar shortcut keyboard.
+
+Gunakan warna terminal yang nyaman dilihat. Pastikan layout tetap rapi ketika ukuran terminal berubah.
+
+## 6. Arsitektur dan Kualitas Kode
+
+- Pisahkan logika audio, scanner, state aplikasi, dan UI.
+- Hindari blocking pada proses input dan rendering.
+- Pastikan pemutaran audio tidak terhenti ketika pengguna melakukan navigasi playlist.
+- Tangani error menggunakan mekanisme Result yang sesuai.
+- Hindari unwrap() pada operasi yang berpotensi gagal.
+- Pastikan terminal dikembalikan ke kondisi normal ketika aplikasi keluar, termasuk ketika terjadi error.
+- Pastikan tidak ada resource audio yang tertinggal.
+- Hindari duplikasi kode dan dependensi yang tidak diperlukan.
+
+Perhatikan perbedaan perilaku audio backend antara Windows dan Linux.
+
+## 7. GitHub Actions
+
+Buat `.github/workflows/build.yml` untuk melakukan build otomatis setiap push ke branch main dan melalui workflow_dispatch.
+
+Target build:
+- Windows x64.
+- Linux x64.
+
+Ketentuan:
+- Menggunakan Rust stable.
+- Menggunakan Cargo cache.
+- Build dengan `cargo build --release`.
+- Memasang dependensi audio Linux yang diperlukan.
+- Mengunggah binary hasil build sebagai GitHub Actions Artifacts.
+- Pastikan workflow menggunakan konfigurasi yang kompatibel dengan versi dependensi terbaru yang dipilih.
+
+Jangan membuat proses build yang tidak diperlukan.
+
+## 8. Optimasi Release
+
+Atur Cargo.toml:
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+Utamakan binary kecil, tetapi jangan sampai optimasi merusak kompatibilitas atau stabilitas.
+
+## 9. Dokumentasi
+
+Buat README.md singkat yang mencakup:
+- Deskripsi R-Play.
+- Fitur.
+- Cara instalasi.
+- Cara menjalankan.
+- Shortcut keyboard.
+- Cara mendapatkan binary dari GitHub Actions.
+
+Jangan membuat dokumentasi panjang yang tidak diperlukan.
+
+## 10. ATURAN PENGERJAAN (PENTING)
+
+1. Periksa isi repository terlebih dahulu sebelum mengubah file.
+2. Jika proyek sudah memiliki kode, pertahankan bagian yang masih berfungsi.
+3. Jangan menimpa atau menghapus file penting tanpa alasan.
+4. Implementasikan fitur secara langsung, bukan hanya memberikan contoh kode atau instruksi.
+5. Prioritaskan Fase 1 sampai berhasil dikompilasi.
+6. Setelah Fase 1 stabil, lanjutkan Fase 2 dan Fase 3.
+7. Jangan menghabiskan token untuk menjelaskan rencana panjang.
+8. Jangan bertanya untuk hal-hal yang bisa diputuskan secara teknis.
+9. Jangan menambahkan fitur di luar spesifikasi.
+10. Jangan mengklaim fitur berhasil jika belum diuji.
+
+## 11. VALIDASI AKHIR
+
+Lakukan pemeriksaan berikut jika lingkungan mendukung:
+
+- `cargo fmt --check`
+- `cargo check`
+- `cargo test`
+- `cargo build --release`
+
+Jika build lintas platform tidak bisa dilakukan secara lokal, validasi melalui GitHub Actions.
+
+Perbaiki error yang ditemukan sebelum menyelesaikan pekerjaan.
+
+## HASIL AKHIR
+
+Pastikan repository berisi aplikasi R-Play yang:
+- Bisa dijalankan melalui perintah `rplay`.
+- Bisa memindai dan memutar musik lokal.
+- Memiliki kontrol keyboard yang berfungsi.
+- Memiliki TUI yang stabil.
+- Memiliki workflow GitHub Actions untuk Windows dan Linux.
+- Memiliki README penggunaan.
+
+Mulai dengan memeriksa repository, kemudian langsung implementasikan. Fokus pada kode yang berfungsi, efisiensi token, dan stabilitas aplikasi.
