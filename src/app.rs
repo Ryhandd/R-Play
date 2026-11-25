@@ -1,7 +1,8 @@
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::audio::AudioPlayer;
-use crate::scanner::Track;
+use crate::scanner::{self, Track};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatMode {
@@ -29,6 +30,7 @@ impl RepeatMode {
 }
 
 pub struct App {
+    pub current_folder: PathBuf,
     pub tracks: Vec<Track>,
     pub filtered_indices: Vec<usize>,
     pub selected_index: usize,
@@ -37,6 +39,8 @@ pub struct App {
     pub repeat: RepeatMode,
     pub search_mode: bool,
     pub search_query: String,
+    pub folder_mode: bool,
+    pub folder_input: String,
     pub status_message: String,
     pub should_quit: bool,
     audio: Option<AudioPlayer>,
@@ -44,12 +48,17 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tracks: Vec<Track>, shuffle: bool, repeat: RepeatMode) -> Self {
+    pub fn new(
+        current_folder: PathBuf,
+        tracks: Vec<Track>,
+        shuffle: bool,
+        repeat: RepeatMode,
+    ) -> Self {
         let filtered_indices: Vec<usize> = (0..tracks.len()).collect();
         let (audio, status_message) = match AudioPlayer::new() {
             Ok(player) => {
                 let msg = if tracks.is_empty() {
-                    "No supported audio files found.".to_string()
+                    "No audio files found. Press 'O' to open a folder.".to_string()
                 } else {
                     format!("Loaded {} tracks.", tracks.len())
                 };
@@ -64,6 +73,7 @@ impl App {
             .unwrap_or(0x5EED_CAFE);
 
         let mut app = Self {
+            current_folder,
             tracks,
             filtered_indices,
             selected_index: 0,
@@ -72,6 +82,8 @@ impl App {
             repeat,
             search_mode: false,
             search_query: String::new(),
+            folder_mode: false,
+            folder_input: String::new(),
             status_message,
             should_quit: false,
             audio,
@@ -217,6 +229,64 @@ impl App {
     pub fn pop_search_char(&mut self) {
         self.search_query.pop();
         self.apply_filter();
+    }
+
+    pub fn enter_folder_mode(&mut self) {
+        self.folder_mode = true;
+        self.folder_input = self.current_folder.to_string_lossy().to_string();
+    }
+
+    pub fn cancel_folder_mode(&mut self) {
+        self.folder_mode = false;
+        self.folder_input.clear();
+    }
+
+    pub fn push_folder_char(&mut self, ch: char) {
+        self.folder_input.push(ch);
+    }
+
+    pub fn pop_folder_char(&mut self) {
+        self.folder_input.pop();
+    }
+
+    pub fn confirm_folder(&mut self) {
+        let raw = self
+            .folder_input
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'');
+        self.folder_mode = false;
+        if raw.is_empty() {
+            return;
+        }
+
+        let path = PathBuf::from(raw);
+        let new_tracks = scanner::scan_directory(&path);
+
+        if let Some(audio) = &self.audio {
+            audio.stop();
+        }
+
+        self.current_folder = path.clone();
+        self.tracks = new_tracks;
+        self.current_track_index = None;
+        self.selected_index = 0;
+        self.search_query.clear();
+        self.filtered_indices = (0..self.tracks.len()).collect();
+        self.folder_input.clear();
+
+        let _ = scanner::save_default_folder(&path);
+
+        if self.tracks.is_empty() {
+            self.status_message = format!("No audio files found in {}", path.display());
+        } else {
+            let start_idx = if self.shuffle {
+                self.random_index(self.tracks.len())
+            } else {
+                0
+            };
+            self.play_track_at(start_idx);
+        }
     }
 
     pub fn tick(&mut self) {

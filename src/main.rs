@@ -68,13 +68,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             path
         }
-        None => match scanner::load_default_folder() {
-            Some(default_path) => default_path,
-            None => {
-                eprintln!("Usage: rplay <MUSIC_FOLDER> [--shuffle] [--repeat] [--set-default]");
-                std::process::exit(1);
-            }
-        },
+        None => scanner::load_default_folder()
+            .or_else(scanner::default_os_music_dir)
+            .unwrap_or_else(|| PathBuf::from(".")),
     };
 
     let tracks = scanner::scan_directory(&music_dir);
@@ -84,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         RepeatMode::Off
     };
 
-    let mut app = App::new(tracks, cli.shuffle, repeat_mode);
+    let mut app = App::new(music_dir, tracks, cli.shuffle, repeat_mode);
 
     let _guard = TerminalGuard::new()?;
     let backend = CrosstermBackend::new(io::stdout());
@@ -116,6 +112,17 @@ fn run_loop(
 }
 
 fn handle_key(app: &mut App, code: KeyCode) {
+    if app.folder_mode {
+        match code {
+            KeyCode::Esc => app.cancel_folder_mode(),
+            KeyCode::Enter => app.confirm_folder(),
+            KeyCode::Backspace => app.pop_folder_char(),
+            KeyCode::Char(c) => app.push_folder_char(c),
+            _ => {}
+        }
+        return;
+    }
+
     if app.search_mode {
         match code {
             KeyCode::Esc => app.exit_search(false),
@@ -137,6 +144,7 @@ fn handle_key(app: &mut App, code: KeyCode) {
         KeyCode::Char('s') | KeyCode::Char('S') => app.toggle_shuffle(),
         KeyCode::Char('r') | KeyCode::Char('R') => app.cycle_repeat(),
         KeyCode::Char('/') => app.enter_search(),
+        KeyCode::Char('o') | KeyCode::Char('O') => app.enter_folder_mode(),
         KeyCode::Up => app.move_selection(-1),
         KeyCode::Down => app.move_selection(1),
         KeyCode::Enter => app.play_selected(),

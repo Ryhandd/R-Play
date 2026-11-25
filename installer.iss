@@ -1,6 +1,6 @@
 [Setup]
 AppName=R-Play
-AppVersion=0.1.0
+AppVersion=0.1.1
 AppPublisher=R-Play
 DefaultDirName={autopf}\R-Play
 DefaultGroupName=R-Play

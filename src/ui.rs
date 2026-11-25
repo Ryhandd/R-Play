@@ -26,7 +26,12 @@ pub fn render(frame: &mut Frame, app: &App) {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
-    let title = if app.search_mode {
+    let title = if app.folder_mode {
+        format!(
+            " R-PLAY MUSIC PLAYER  |  Open Folder: {}_ ",
+            app.folder_input
+        )
+    } else if app.search_mode {
         format!(" R-PLAY MUSIC PLAYER  |  Search: {}_ ", app.search_query)
     } else if !app.search_query.is_empty() {
         format!(
@@ -49,7 +54,13 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_playlist(frame: &mut Frame, area: Rect, app: &App) {
-    let items: Vec<ListItem> = if app.filtered_indices.is_empty() {
+    let items: Vec<ListItem> = if app.tracks.is_empty() {
+        vec![
+            ListItem::new(format!("  Folder: {}", app.current_folder.display())),
+            ListItem::new("  No supported audio files (.mp3, .wav, .ogg, .flac) found."),
+            ListItem::new("  Press 'O' to open/change music folder (e.g. D:\\Music)."),
+        ]
+    } else if app.filtered_indices.is_empty() {
         vec![ListItem::new("  (No matching tracks)")]
     } else {
         app.filtered_indices
@@ -183,10 +194,12 @@ fn render_now_playing(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
-    let text = if app.search_mode {
+    let text = if app.folder_mode {
+        " Type folder path | Enter: Open & Save Default | Esc: Cancel "
+    } else if app.search_mode {
         " Type to filter | Enter: Apply | Esc: Clear & Exit "
     } else {
-        " Space: Play/Pause | Enter: Play | ↑/↓: Nav | N/P: Next/Prev | +/-: Vol | S: Shuffle | R: Repeat | /: Search | Q: Quit "
+        " Space: Play/Pause | Enter: Play | ↑/↓: Nav | N/P: Next/Prev | +/-: Vol | S: Shuffle | R: Repeat | /: Search | O: Folder | Q: Quit "
     };
 
     let footer = Paragraph::new(Line::from(Span::styled(

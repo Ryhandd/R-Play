@@ -112,6 +112,15 @@ pub fn config_file_path() -> Option<PathBuf> {
     base.map(|dir| dir.join("rplay").join("default_folder.txt"))
 }
 
+pub fn default_os_music_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let home = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    #[cfg(not(target_os = "windows"))]
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+
+    home.map(|dir| dir.join("Music"))
+}
+
 pub fn load_default_folder() -> Option<PathBuf> {
     let path = config_file_path()?;
     let content = fs::read_to_string(path).ok()?;

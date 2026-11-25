@@ -52,6 +52,7 @@ Opsi tambahan:
 | `S` | Toggle Shuffle |
 | `R` | Ganti mode Repeat (Off / All / One) |
 | `/` | Cari lagu dalam playlist |
+| `O` | Buka / ganti folder musik (otomatis disimpan sebagai default) |
 | `Q` | Keluar |
 
 ## Mendapatkan Binary dari GitHub Actions
