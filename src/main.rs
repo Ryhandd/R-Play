@@ -113,12 +113,25 @@ fn run_loop(
 
 fn handle_key(app: &mut App, code: KeyCode) {
     if app.folder_mode {
-        match code {
-            KeyCode::Esc => app.cancel_folder_mode(),
-            KeyCode::Enter => app.confirm_folder(),
-            KeyCode::Backspace => app.pop_folder_char(),
-            KeyCode::Char(c) => app.push_folder_char(c),
-            _ => {}
+        if app.folder_typing {
+            match code {
+                KeyCode::Esc => app.cancel_folder_mode(),
+                KeyCode::Enter => app.confirm_folder(),
+                KeyCode::Backspace => app.pop_folder_char(),
+                KeyCode::Char(c) => app.push_folder_char(c),
+                _ => {}
+            }
+        } else {
+            match code {
+                KeyCode::Esc => app.cancel_folder_mode(),
+                KeyCode::Up => app.browse_move(-1),
+                KeyCode::Down => app.browse_move(1),
+                KeyCode::Enter => app.browse_activate(),
+                KeyCode::Backspace => app.browse_go_up(),
+                KeyCode::Char(' ') => app.browse_select_current(),
+                KeyCode::Char('t') | KeyCode::Char('T') => app.start_folder_typing(),
+                _ => {}
+            }
         }
         return;
     }

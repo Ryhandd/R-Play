@@ -145,6 +145,43 @@ pub fn save_default_folder(folder: &Path) -> std::io::Result<()> {
     fs::write(path, folder.to_string_lossy().as_bytes())
 }
 
+pub fn list_subfolders(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    dirs.sort_by(|a, b| {
+        a.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .cmp(
+                &b.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase(),
+            )
+    });
+    dirs
+}
+
+#[cfg(target_os = "windows")]
+pub fn list_drives() -> Vec<PathBuf> {
+    (b'A'..=b'Z')
+        .map(|letter| PathBuf::from(format!("{}:\\", letter as char)))
+        .filter(|p| p.exists())
+        .collect()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn list_drives() -> Vec<PathBuf> {
+    vec![PathBuf::from("/")]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

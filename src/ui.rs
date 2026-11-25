@@ -27,10 +27,16 @@ pub fn render(frame: &mut Frame, app: &App) {
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     let title = if app.folder_mode {
-        format!(
-            " R-PLAY MUSIC PLAYER  |  Open Folder: {}_ ",
-            app.folder_input
-        )
+        if app.folder_typing {
+            format!(" R-PLAY MUSIC PLAYER  |  Type Path: {}_ ", app.folder_input)
+        } else {
+            let loc = app
+                .browse_dir
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "Drives".to_string());
+            format!(" R-PLAY MUSIC PLAYER  |  Browse: {loc} ")
+        }
     } else if app.search_mode {
         format!(" R-PLAY MUSIC PLAYER  |  Search: {}_ ", app.search_query)
     } else if !app.search_query.is_empty() {
@@ -54,11 +60,51 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_playlist(frame: &mut Frame, area: Rect, app: &App) {
+    if app.folder_mode {
+        let items: Vec<ListItem> = app
+            .browse_entries
+            .iter()
+            .map(|entry| {
+                let style = match entry {
+                    crate::app::BrowseEntry::SelectCurrent(_) => Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                    crate::app::BrowseEntry::Parent(_) => Style::default().fg(Color::Cyan),
+                    crate::app::BrowseEntry::Dir(_) => Style::default().fg(Color::White),
+                };
+                ListItem::new(Line::from(Span::styled(
+                    format!("  {}", entry.label()),
+                    style,
+                )))
+            })
+            .collect();
+
+        let mut state = ListState::default();
+        if !app.browse_entries.is_empty() {
+            state.select(Some(app.browse_selected));
+        }
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title(" Select Music Folder ")
+                    .borders(Borders::ALL),
+            )
+            .highlight_style(
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            );
+        frame.render_stateful_widget(list, area, &mut state);
+        return;
+    }
+
     let items: Vec<ListItem> = if app.tracks.is_empty() {
         vec![
             ListItem::new(format!("  Folder: {}", app.current_folder.display())),
             ListItem::new("  No supported audio files (.mp3, .wav, .ogg, .flac) found."),
-            ListItem::new("  Press 'O' to open/change music folder (e.g. D:\\Music)."),
+            ListItem::new("  Press 'O' or 'Enter' to browse & select your music folder."),
         ]
     } else if app.filtered_indices.is_empty() {
         vec![ListItem::new("  (No matching tracks)")]
@@ -195,7 +241,11 @@ fn render_now_playing(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
     let text = if app.folder_mode {
-        " Type folder path | Enter: Open & Save Default | Esc: Cancel "
+        if app.folder_typing {
+            " Type/Paste folder path | Enter: Open & Save | Esc: Back "
+        } else {
+            " ↑/↓: Move | Enter: Open | Backspace: Up | Space: Use Folder | T: Type Path | Esc: Cancel "
+        }
     } else if app.search_mode {
         " Type to filter | Enter: Apply | Esc: Clear & Exit "
     } else {

@@ -29,6 +29,32 @@ impl RepeatMode {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum BrowseEntry {
+    SelectCurrent(PathBuf),
+    Parent(Option<PathBuf>),
+    Dir(PathBuf),
+}
+
+impl BrowseEntry {
+    pub fn label(&self) -> String {
+        match self {
+            BrowseEntry::SelectCurrent(p) => format!("[✓] Use this folder: {}", p.display()),
+            BrowseEntry::Parent(Some(_)) => ".. (Parent folder)".to_string(),
+            BrowseEntry::Parent(None) => ".. (Drives)".to_string(),
+            BrowseEntry::Dir(p) => {
+                let name = p
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| p.to_string_lossy().to_string());
+                format!("[DIR] {name}")
+            }
+        }
+    }
+}
+
 pub struct App {
     pub current_folder: PathBuf,
     pub tracks: Vec<Track>,
@@ -40,7 +66,11 @@ pub struct App {
     pub search_mode: bool,
     pub search_query: String,
     pub folder_mode: bool,
+    pub folder_typing: bool,
     pub folder_input: String,
+    pub browse_dir: Option<PathBuf>,
+    pub browse_entries: Vec<BrowseEntry>,
+    pub browse_selected: usize,
     pub status_message: String,
     pub should_quit: bool,
     audio: Option<AudioPlayer>,
@@ -83,7 +113,11 @@ impl App {
             search_mode: false,
             search_query: String::new(),
             folder_mode: false,
+            folder_typing: false,
             folder_input: String::new(),
+            browse_dir: None,
+            browse_entries: Vec::new(),
+            browse_selected: 0,
             status_message,
             should_quit: false,
             audio,
@@ -133,6 +167,10 @@ impl App {
     }
 
     pub fn play_selected(&mut self) {
+        if self.tracks.is_empty() {
+            self.enter_folder_mode();
+            return;
+        }
         if let Some(&track_idx) = self.filtered_indices.get(self.selected_index) {
             self.play_track_at(track_idx);
         }
@@ -208,6 +246,9 @@ impl App {
     }
 
     pub fn enter_search(&mut self) {
+        if self.tracks.is_empty() {
+            return;
+        }
         self.search_mode = true;
         self.search_query.clear();
         self.apply_filter();
@@ -233,12 +274,35 @@ impl App {
 
     pub fn enter_folder_mode(&mut self) {
         self.folder_mode = true;
-        self.folder_input = self.current_folder.to_string_lossy().to_string();
+        self.folder_typing = false;
+        self.folder_input.clear();
+
+        let start = if self.current_folder.is_dir() {
+            Some(self.current_folder.clone())
+        } else {
+            scanner::default_os_music_dir().filter(|p| p.is_dir())
+        };
+        self.set_browse_dir(start);
     }
 
     pub fn cancel_folder_mode(&mut self) {
-        self.folder_mode = false;
-        self.folder_input.clear();
+        if self.folder_typing {
+            self.folder_typing = false;
+            self.folder_input.clear();
+        } else {
+            self.folder_mode = false;
+            self.browse_entries.clear();
+        }
+    }
+
+    pub fn start_folder_typing(&mut self) {
+        self.folder_typing = true;
+        self.folder_input = self
+            .browse_dir
+            .as_ref()
+            .unwrap_or(&self.current_folder)
+            .to_string_lossy()
+            .to_string();
     }
 
     pub fn push_folder_char(&mut self, ch: char) {
@@ -249,18 +313,83 @@ impl App {
         self.folder_input.pop();
     }
 
+    pub fn browse_move(&mut self, delta: isize) {
+        if self.browse_entries.is_empty() {
+            self.browse_selected = 0;
+            return;
+        }
+        let len = self.browse_entries.len() as isize;
+        self.browse_selected = (self.browse_selected as isize + delta).rem_euclid(len) as usize;
+    }
+
+    pub fn browse_activate(&mut self) {
+        let Some(entry) = self.browse_entries.get(self.browse_selected).cloned() else {
+            return;
+        };
+        match entry {
+            BrowseEntry::SelectCurrent(path) => self.load_folder(path),
+            BrowseEntry::Parent(parent) => self.set_browse_dir(parent),
+            BrowseEntry::Dir(dir) => self.set_browse_dir(Some(dir)),
+        }
+    }
+
+    pub fn browse_go_up(&mut self) {
+        let Some(dir) = &self.browse_dir else {
+            return;
+        };
+        let parent = dir.parent().map(|p| p.to_path_buf());
+        self.set_browse_dir(parent);
+    }
+
+    pub fn browse_select_current(&mut self) {
+        if let Some(dir) = self.browse_dir.clone() {
+            self.load_folder(dir);
+        }
+    }
+
     pub fn confirm_folder(&mut self) {
         let raw = self
             .folder_input
             .trim()
             .trim_matches('"')
             .trim_matches('\'');
-        self.folder_mode = false;
         if raw.is_empty() {
+            self.cancel_folder_mode();
             return;
         }
-
         let path = PathBuf::from(raw);
+        self.load_folder(path);
+    }
+
+    fn set_browse_dir(&mut self, dir: Option<PathBuf>) {
+        self.browse_dir = dir.clone();
+        self.browse_entries.clear();
+        self.browse_selected = 0;
+
+        match dir {
+            Some(path) => {
+                self.browse_entries
+                    .push(BrowseEntry::SelectCurrent(path.clone()));
+                let parent = path.parent().map(|p| p.to_path_buf());
+                self.browse_entries.push(BrowseEntry::Parent(parent));
+                for sub in scanner::list_subfolders(&path) {
+                    self.browse_entries.push(BrowseEntry::Dir(sub));
+                }
+            }
+            None => {
+                for drive in scanner::list_drives() {
+                    self.browse_entries.push(BrowseEntry::Dir(drive));
+                }
+            }
+        }
+    }
+
+    fn load_folder(&mut self, path: PathBuf) {
+        self.folder_mode = false;
+        self.folder_typing = false;
+        self.folder_input.clear();
+        self.browse_entries.clear();
+
         let new_tracks = scanner::scan_directory(&path);
 
         if let Some(audio) = &self.audio {
@@ -273,7 +402,6 @@ impl App {
         self.selected_index = 0;
         self.search_query.clear();
         self.filtered_indices = (0..self.tracks.len()).collect();
-        self.folder_input.clear();
 
         let _ = scanner::save_default_folder(&path);
 
