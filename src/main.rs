@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let res = run_loop(&mut terminal, &mut app);
     app.quit();
-    res
+    Ok(res?)
 }
 
 fn run_loop(
