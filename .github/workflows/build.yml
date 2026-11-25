@@ -4,7 +4,12 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -16,10 +21,10 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: rplay-linux-x64
-            binary_path: target/release/rplay
+            artifact_path: target/release/rplay
           - os: windows-latest
-            artifact_name: rplay-windows-x64
-            binary_path: target/release/rplay.exe
+            artifact_name: rplay-setup-windows-x64
+            artifact_path: target/release/rplay-setup-windows-x64.exe
 
     steps:
       - name: Checkout repository
@@ -40,8 +45,29 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Build Windows Setup installer
+        if: runner.os == 'Windows'
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            $inno = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            if (Test-Path $inno) {
+              & $inno installer.iss
+            } else {
+              choco install innosetup -y
+              & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+            }
+          } else {
+            iscc installer.iss
+          }
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.binary_path }}
+          path: ${{ matrix.artifact_path }}
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact_path }}
